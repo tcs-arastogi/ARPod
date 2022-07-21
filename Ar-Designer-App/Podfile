@@ -1,0 +1,38 @@
+platform :ios, '14.0'
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+    end
+  end
+end
+
+
+def project_pods
+  use_frameworks!
+
+  pod 'SwiftLint'
+  pod 'Kingfisher'
+  pod 'OverlayContainer'
+  
+  # Tests
+  #pod 'XNLogger'
+end
+
+#############################
+####### Application  ########
+#############################
+target 'AROrganizer-Develop' do
+  inherit! :search_paths
+  project_pods
+end
+
+target 'AROrganizer' do
+  inherit! :search_paths
+  project_pods
+end
+
+
+
+

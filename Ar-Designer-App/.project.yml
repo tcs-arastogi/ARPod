@@ -1,0 +1,98 @@
+name: AROrganizer
+settings:
+    base:
+        SWIFT_VERSION: 5.0
+        DEVELOPMENT_TEAM: UBF9L4MFG6
+        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 20
+        TARGETED_DEVICE_FAMILY: 1
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_BITCODE: NO
+        CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER: YES
+        CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: YES
+        EXCLUDED_ARCHS[sdk=iphonesimulator*]: arm64
+configs:
+    Debug:
+        ENABLE_TESTABILITY: YES
+        SWIFT_COMPILATION_MODE: singlefile
+        SWIFT_OPTIMIZATION_LEVEL: -Onone
+        VALIDATE_PRODUCT: NO
+    Release:
+        ENABLE_TESTABILITY: NO
+        SWIFT_COMPILATION_MODE: wholemodule
+        SWIFT_OPTIMIZATION_LEVEL: -O
+        VALIDATE_PRODUCT: YES
+options:
+    usesTabs: false
+    indentWidth: 4
+    tabWidth: 4
+    groupSortPosition: top
+    defaultConfig: Release
+targets:
+##########################
+######## Product #########
+##########################
+    AROrganizer-Develop:
+        type: application
+        platform: iOS
+        deploymentTarget: "14.0"
+        sources:
+            - AROrganizer
+            - ".project.yml"
+            - ".swiftlint.yml"
+            - path: fastlane
+              excludes:
+                - "**/README.md"
+                - "**/report.xml"
+            - path: Environments
+              excludes:
+                - "**/Release/Info.plist"
+        settings:
+            base:
+                TARGETED_DEVICE_FAMILY: 1
+                INFOPLIST_FILE: "Environments/Develop/Info.plist"
+                PRODUCT_BUNDLE_IDENTIFIER: "com.containerstore.ar.designerapp.alpha"
+        scheme:
+            environmentVariables:
+            - variable: OS_ACTIVITY_MODE
+              value: disable
+              isEnabled: false
+        postBuildScripts:
+            - script: |
+                       "${PODS_ROOT}/SwiftLint/swiftlint"
+              name: "[Script] SwiftLint"
+    AROrganizer:
+      type: application
+      platform: iOS
+      deploymentTarget: "14.0"
+      sources:
+          - AROrganizer
+          - ".project.yml"
+          - ".swiftlint.yml"
+          - path: fastlane
+            excludes:
+              - "**/README.md"
+              - "**/report.xml"
+          - path: Environments
+            excludes:
+              - "**/Develop/Info.plist"
+      settings:
+          base:
+              TARGETED_DEVICE_FAMILY: 1
+              INFOPLIST_FILE: "Environments/Release/Info.plist"
+              PRODUCT_BUNDLE_IDENTIFIER: "com.containerstore.ar.designerapp.alpha"
+      scheme:
+          environmentVariables:
+          - variable: OS_ACTIVITY_MODE
+            value: disable
+            isEnabled: false
+      postBuildScripts:
+          - script: |
+                     "${PODS_ROOT}/SwiftLint/swiftlint"
+            name: "[Script] SwiftLint"
+    AROrganizerTests:
+        type: bundle.unit-test
+        platform: iOS
+        deploymentTarget: "14.0"
+        sources:
+          - Tests

@@ -1,0 +1,202 @@
+default_platform :ios
+platform :ios do
+
+ENV["FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT"] = "180"
+ENV["FASTLANE_XCODE_LIST_TIMEOUT"] = "180"
+ENV["FASTLANE_USER"] = "ygoroshenko@griddynamics.com"
+ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] = ""
+ENV["WORKSPACE"] = "AROrganizer.xcworkspace"
+ENV["BUNDLE_APP"] = "com.ar.organizer"
+ENV["IPA_NAME"] = "AROrganizer.ipa"
+ENV["FIREBASE_CLI"] = "1:256934034130:ios:a8650456eb6b6c58f28b0b"
+ENV["SLACK_URL"] = "https://hooks.slack.com/services/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"
+
+output_directory = "./output"
+
+##############################################################
+##################### SETUP / CONFIGURE ######################
+##############################################################
+# Clear git Repos
+lane :cocoapods64 do
+    Dir.chdir("../") do
+        sh 'arch -x86_64 pod install'
+    end
+end
+
+lane :clear do
+    Dir.chdir("../") do
+        sh 'git remote update origin --prune'
+    end
+end
+
+# Update
+lane :updates do
+    fastlane update_plugins
+end
+
+# XcodeGen
+lane :run_xcodegen do
+    Dir.chdir("../") do
+        sh 'xcodegen generate --spec ".project.yml"'
+    end
+
+    cocoapods64
+    clean_build_artifacts
+end
+
+# SwiftLint autocorrect
+lane :run_autocorrect do
+    Dir.chdir("../") do
+        sh 'swiftlint autocorrect'
+    end
+end
+##############################################################
+##################### FAST SCRIPTS ###########################
+##############################################################
+lane :run_all do
+    run_xcodegen
+    run_autocorrect
+end
+
+lane :configure do
+    match(type: "development")
+    match(type: "adhoc")
+    match(type: "appstore")
+end
+
+lane :certificates do
+    match(type: "adhoc", app_identifier: ["com.ar.organizer"])
+    match(type: "appstore", app_identifier: ["com.ar.organizer"])
+end
+
+lane :remove_cer do
+    match_nuke
+end
+
+##############################################################
+#################### COMMON SCRIPTS ##########################
+##############################################################
+before_all do |options|
+    skip_docs
+    clear_derived_data
+    #cocoapods
+    #cocoapods64
+end
+
+# Deploy build to Firebase
+lane :build_alpha do
+    match(type: "adhoc", app_identifier: ENV["BUNDLE_APP"], force_for_new_devices: true)
+
+    build_app(
+        workspace: ENV["WORKSPACE"],
+        configuration: "Release",
+        export_method: "ad-hoc",
+        scheme: ENV["SCHEME"],
+        silent: true,
+        output_directory: output_directory,
+        output_name: ENV["IPA_NAME"]
+    )
+end
+
+lane :build_beta do
+    match(type: "adhoc", app_identifier: ENV["BUNDLE_APP"], force_for_new_devices: true)
+
+    build_app(
+        workspace: ENV["WORKSPACE"],
+        configuration: "Release",
+        export_method: "ad-hoc",
+        scheme: ENV["SCHEME"],
+        silent: true,
+        output_directory: output_directory,
+        output_name: ENV["IPA_NAME"]
+    )
+
+    firebase_app_distribution(
+        app: ENV["FIREBASE_CLI"],
+        service_credentials_file: firebase_service_credentials_file,
+        groups: ENV["TESTER_GROUP"],
+        release_notes: ENV["RELEASE_NOTES"]
+    )
+end
+
+# Deploy build to TestFlight
+lane :build_testflight do
+    get_build_number
+    match(type: "appstore", force_for_new_devices: true, app_identifier: ENV["BUNDLE_APP"])
+
+    build_app(
+        workspace: ENV["WORKSPACE"],
+        configuration: "Release",
+        export_method: "app-store",
+        scheme: ENV["SCHEME"],
+        silent: true,
+        clean: true,
+        output_directory: output_directory,
+        output_name: ENV["IPA_NAME"]
+    )
+
+    upload_to_testflight(skip_waiting_for_build_processing: true)
+end
+##############################################################
+###################### PRODUCTS ################################
+##############################################################
+lane :setup_debug do
+    ticket = git_branch.match(/[a-z]+\/([^>]+)/)[1]
+    ENV["IPA_NAME"] = ticket + "-" + ENV["IPA_NAME"]
+end
+
+desc "DEVELOP build"
+lane :adhoc_develop do
+    ENV["SCHEME"] = "AROrganizer-Develop"
+    ENV["TESTER_GROUP"] = "iOS_DevGroup"
+    build_alpha
+end
+
+desc "STAGE build"
+lane :adhoc_stage do
+    ENV["SCHEME"] = "AROrganizer - Stage"
+    ENV["TESTER_GROUP"] = "iOS_StageGroup"
+    build_alpha
+end
+
+desc "PRODUCTION build"
+lane :appstore_prod do
+    ENV["SCHEME"] = "AROrganizer - Production"
+    build_testflight
+end
+
+##############################################################
+####################### Notifications ########################
+##############################################################
+lane :slack_notify do |options|
+    slack(slack_url: ENV["SLACK_URL"],
+          default_payloads: [:git_branch],
+          attachment_properties: { thumb_url: ENV["SLACK_ICON"],
+                                   fields: [{ title: ENV["CHANGELOG_TITLE"], value: ENV["NOTES"]}]}
+        )
+end
+
+# Changelog
+lane :notes_at_start do |options|
+    tasks = "*Done ID Tasks:*\n"
+    other = "*Other Tasts:*\n"
+
+    current_branch = git_branch
+    changelog = changelog_from_git_commits( between: [ENV["GIT_KEY"], "HEAD"],
+                                            pretty: "%s",
+                                            date_format: "short",
+                                            match_lightweight_tag: false)
+    changelog.each_line do |line|
+        _, series, model = line.split /\[(.+)\]/
+
+        if series.nil?
+            other += line
+        else
+            tasks += "["+series+"]"+model
+        end
+    end
+
+    ENV["NOTES"] = tasks + "\n" + other
+end
+
+end
